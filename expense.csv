@@ -1,0 +1,6 @@
+date,category,amount,payment_method,description,group_id
+2025-09-01,Food,250,Credit Card,Lunch at cafe,group1
+2025-09-02,Transport,120,Cash,Uber ride,group1
+2025-09-03,Rent,10000,UPI,Monthly apartment rent,group2
+2025-09-04,Utilities,1500,NetBanking,Electricity bill,group2
+2025-09-05,Entertainment,500,Debit Card,Movie tickets,group1
