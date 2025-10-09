@@ -18,7 +18,7 @@ function groupRoutes(Groups) {
             { "members.user_id": new ObjectId(req.user.id) }
           ] }
         : {};
-      const groups = await Groups.find(query).toArray();
+      const groups = await Groups.find(query);
       console.log("Groups fetched:", groups.length);
       res.json(groups);
     } catch (error) {
@@ -53,7 +53,7 @@ function groupRoutes(Groups) {
         });
       }
 
-      const result = await Groups.insertOne({
+      const result = await Groups.create({
         name,
         created_by: new ObjectId(created_by),
         members: formattedMembers,

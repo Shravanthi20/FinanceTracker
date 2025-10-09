@@ -11,7 +11,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Debug log for MONGO_URI
+// ✅ Debug log
 if (!process.env.MONGO_URI) {
   console.error('❌ MONGO_URI not found in .env file');
   process.exit(1);
@@ -19,10 +19,10 @@ if (!process.env.MONGO_URI) {
   console.log('📦 MONGO_URI loaded from .env');
 }
 
-// TEMP: disable TLS cert verification (for local dev only — remove in production)
+// ⚠️ Local-only TLS bypass
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-// ✅ Import Route Files
+// ✅ Import all route files
 const authRoutes = require('./routes/auth');
 const uploadRoutes = require('./routes/upload');
 const transactionsRoutes = require('./routes/transactions');
@@ -34,48 +34,34 @@ const createExpenseRoutes = require('./routes/expenseRoutes');
 const createGroupRoutes = require('./routes/groupRoutes');
 const createUserRoutes = require('./routes/userRoutes');
 
-// ✅ MongoDB Native Driver Setup
-let db, Users, Groups, Expenses;
+// ✅ Mongoose routes
+const goalRoutes = require('./routes/goalRoutes');
+const contributionRoutes = require('./routes/contributionRoutes');
 
-function deriveDbNameFromUri(uri) {
-  try {
-    const u = new URL(uri);
-    // pathname starts with '/'
-    const pathDb = u.pathname && u.pathname !== '/' ? u.pathname.slice(1) : '';
-    return pathDb || process.env.MONGO_DB_NAME || 'FinanceTracker';
-  } catch (e) {
-    return process.env.MONGO_DB_NAME || 'FinanceTracker';
-  }
-}
+// ✅ Mongoose models
+const Goals = require('./models/Goal');
+const Contributions = require('./models/Contribution');
+const Groups = require('./models/Groups');
+
+// ✅ Native MongoDB
+let db, Users, Expenses;
 
 async function connectMongoClient() {
   try {
-    const enableTls = String(process.env.MONGO_TLS).toLowerCase() === 'true';
-    const clientOptions = {
+    const client = new MongoClient(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 10000,
-    };
-    if (enableTls) clientOptions.tls = true;
-
-    const client = new MongoClient(process.env.MONGO_URI, clientOptions);
-
+    });
     await client.connect();
-    const targetDbName = deriveDbNameFromUri(process.env.MONGO_URI);
-    db = client.db(targetDbName);
+    db = client.db('FinanceTracker');
     Users = db.collection('Users');
-    Groups = db.collection('Groups');
     Expenses = db.collection('Expenses');
-
     console.log(`✅ MongoDB Connected (Native Driver) — DB: ${db.databaseName}`);
   } catch (err) {
-    console.error('❌ MongoDB connection error (Native Driver):', err.message);
-    console.log('⚠️  Continuing with Mongoose connection only');
-    // Don't exit - let Mongoose handle the database operations
+    console.error('❌ MongoDB Native error:', err.message);
   }
 }
 
-// ✅ Mongoose Connection Setup (for routes that use Mongoose models)
 async function connectMongoose() {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
@@ -89,11 +75,11 @@ async function connectMongoose() {
   }
 }
 
-// Connect both drivers
+// 🔌 Connect both
 connectMongoClient();
 connectMongoose();
 
-// ✅ Use Express Routes
+// ✅ Express routes
 app.use('/api/auth', authRoutes);
 app.use('/api', uploadRoutes);
 app.use('/api', transactionsRoutes);
@@ -102,15 +88,10 @@ app.use('/api/reports', reportsRouter);
 app.use('/api/forecast', forecastRouter);
 app.use('/api/notifications', notificationsRouter);
 
-// ✅ Register Native Driver Routes (with DB check)
+// ✅ Native routes
 app.use('/api/users', (req, res, next) => {
   if (!Users) return res.status(500).json({ error: 'Database not initialized' });
   createUserRoutes(Users)(req, res, next);
-});
-
-app.use('/api/groups', (req, res, next) => {
-  if (!Groups) return res.status(500).json({ error: 'Database not initialized' });
-  createGroupRoutes(Groups)(req, res, next);
 });
 
 app.use('/api/expenses', (req, res, next) => {
@@ -118,50 +99,52 @@ app.use('/api/expenses', (req, res, next) => {
   createExpenseRoutes(Expenses)(req, res, next);
 });
 
-// 🩺 Health Check Route
-app.get('/', (req, res) => {
-  res.send('Server is running ✅');
-});
+// ✅ Use Mongoose-based model for groups (no native)
+app.use('/api/groups', createGroupRoutes(Groups));
 
-// 🔔 Simple cron to send due reminders every minute
+// ✅ Use Mongoose models directly for these
+app.use('/api/goals', goalRoutes);
+app.use('/api/contributions', contributionRoutes);
+
+// 🩺 Health check
+app.get('/', (req, res) => res.send('Server is running ✅'));
+
+// 🔔 Reminder cron
 try {
   const Reminder = require('./models/Reminder');
   const { sendNotification } = require('./utils/notification');
+
   cron.schedule('* * * * *', async () => {
     const now = new Date();
-    try {
-      const due = await Reminder.find({ sent: false, sendAt: { $lte: now } }).limit(20);
-      for (const r of due) {
-        // Fetch user and preferences
-        const User = require('./models/User');
-        const user = await User.findById(r.user_id).select('email notificationPreferences');
-        if (!user) continue;
-        const channel = r.channel || user.notificationPreferences?.channel || 'email';
-        try {
-          await sendNotification({
-            channel,
-            email: user.email,
-            phone: user.notificationPreferences?.phone,
-            subject: 'Reminder',
-            text: r.message,
-            html: `<p>${r.message}</p>`,
-          });
-          r.sent = true;
-          r.error = null;
-        } catch (e) {
-          r.error = e.message;
-        }
-        await r.save();
+    const due = await Reminder.find({ sent: false, sendAt: { $lte: now } }).limit(20);
+    for (const r of due) {
+      const User = require('./models/User');
+      const user = await User.findById(r.user_id).select('email notificationPreferences');
+      if (!user) continue;
+      const channel = r.channel || user.notificationPreferences?.channel || 'email';
+      try {
+        await sendNotification({
+          channel,
+          email: user.email,
+          phone: user.notificationPreferences?.phone,
+          subject: 'Reminder',
+          text: r.message,
+          html: `<p>${r.message}</p>`,
+        });
+        r.sent = true;
+        r.error = null;
+      } catch (e) {
+        r.error = e.message;
       }
-    } catch (e) {
-      console.error('Reminder cron error:', e.message);
+      await r.save();
     }
   });
-  console.log('🔔 Reminder cron scheduled (every minute)');
+
+  console.log('🔔 Reminder cron scheduled');
 } catch (e) {
   console.warn('Reminder cron not started:', e.message);
 }
 
-// 🚀 Start Server
+// 🚀 Start server
 const PORT = process.env.PORT || 5050;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
