@@ -36,6 +36,33 @@ const userSchema = new mongoose.Schema(
       smsEnabled: { type: Boolean, default: false },
       phone: { type: String, default: null },
       timezone: { type: String, default: "UTC" },
+      // Master settings below
+      bills: {
+        electricity: {
+          enabled: { type: Boolean, default: false },
+          dayOfMonth: { type: Number, min: 1, max: 31, default: 1 },
+        },
+        rent: {
+          enabled: { type: Boolean, default: false },
+          dayOfMonth: { type: Number, min: 1, max: 31, default: 1 },
+        },
+        subscriptions: {
+          enabled: { type: Boolean, default: false },
+          dayOfMonth: { type: Number, min: 1, max: 31, default: 1 },
+        },
+      },
+      budgets: {
+        monthlyBudget: { type: Number, default: 0 },
+        lowBalanceThresholdPct: { type: Number, min: 0, max: 100, default: 20 },
+      },
+      groupAlerts: {
+        notifyMembershipChanges: { type: Boolean, default: true },
+        notifyGroupTransactions: { type: Boolean, default: false },
+      },
+      smartReminders: {
+        enabled: { type: Boolean, default: false },
+        groceryHintAmount: { type: Number, default: 2000 },
+      },
     },
   },
   { timestamps: true }

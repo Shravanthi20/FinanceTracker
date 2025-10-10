@@ -8,6 +8,7 @@ const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -17,6 +18,7 @@ const Navbar = () => {
   const isActive = (path) => location.pathname === path;
 
   const toggleDropdown = () => setIsDropdownOpen((prev) => !prev);
+  const toggleNotif = () => setIsNotifOpen((prev) => !prev);
 
   return (
     <nav className="navbar">
@@ -104,12 +106,41 @@ const Navbar = () => {
                   🤖 Forecast
                 </Link>
 
-                <Link 
-                  to="/settings/notifications"
-                  className={`navbar-link ${isActive('/settings/notifications') ? 'active' : ''}`}
-                >
-                  🔔 Notifications
-                </Link>
+                {/* 🔔 Notifications Dropdown */}
+                <div className="navbar-dropdown" style={{ marginLeft: 8 }}>
+                  <button
+                    className="navbar-link dropdown-toggle"
+                    onClick={toggleNotif}
+                  >
+                    🔔 Notifications ▾
+                  </button>
+
+                  {isNotifOpen && (
+                    <div className="dropdown-menu">
+                      <Link
+                        to="/settings/notifications#create"
+                        className={`dropdown-item ${isActive('/settings/notifications') ? 'active' : ''}`}
+                        onClick={() => setIsNotifOpen(false)}
+                      >
+                        ➕ Create Reminder
+                      </Link>
+                      <Link
+                        to="/settings/notifications#notify"
+                        className={`dropdown-item ${isActive('/settings/notifications') ? 'active' : ''}`}
+                        onClick={() => setIsNotifOpen(false)}
+                      >
+                        📨 Create Notification
+                      </Link>
+                      <Link
+                        to="/settings/notifications#reminders"
+                        className={`dropdown-item ${isActive('/settings/notifications') ? 'active' : ''}`}
+                        onClick={() => setIsNotifOpen(false)}
+                      >
+                        🗓️ Show Reminders
+                      </Link>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <>
